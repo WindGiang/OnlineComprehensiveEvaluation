@@ -1,6 +1,7 @@
 import datetime
 from typing import Any, Dict, Optional, Union
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from datetime import date
 
@@ -13,20 +14,25 @@ from app.crud.crud_academy import CRUDAcademy
 
 
 class CRUDStudent(CRUDBase[Student, StudentCreate, StudentUpdate]):
-    def get_by_id(self, db: Session, id) -> Student:
+    def get_by_id(self, db: Session, id: int) -> Student:
+        # return db.execute(select(Student, Academy).where(Student.id == id, Academy.id == Student.discipline_id))
         return db.query(Student).filter(Student.id == id).first()
 
+    def get_info(self, db: Session, ):
+        pass
+
     def create(self, db: Session, *, obj_in: StudentCreate) -> Student:
-        disciline = db.query(Academy).filter(Academy.academy_name == obj_in.discipline).first()
-        graduate_time = obj_in.admission_time+datetime.timedelta(days=1399)
+        disciline = db.query(Academy).filter(Academy.discipline_name == obj_in.discipline).first()
+        graduate_time = obj_in.admission_time + datetime.timedelta(days=1399)
         db_obj = Student(
             id=obj_in.id,
             name=obj_in.name,
+            political_status=obj_in.political_status,
             gender=obj_in.gender,
+            phone_number=obj_in.phone_number,
             first_academy=disciline,
             hashed_password=get_password_hash(obj_in.password),
             admission_time=obj_in.admission_time,
-            phone_number=obj_in.phone_number,
             graduate_time=graduate_time,
         )
         db.add(db_obj)
@@ -35,26 +41,23 @@ class CRUDStudent(CRUDBase[Student, StudentCreate, StudentUpdate]):
         return db_obj
 
     def update(
-        self,
-        db: Session,
-        *,
-        db_obj: Student,
-        obj_in: Union[StudentUpdate, Dict[str, Any]]
+            self,
+            db: Session,
+            *,
+            db_obj: Student,
+            obj_in: Union[StudentUpdate, Dict[str, Any]]
     ) -> Student:
         if isinstance(obj_in, dict):
             update_data = obj_in
         else:
             update_data = obj_in.dict(exclude_unset=True)
-        if update_data['password']:
+        if update_data.get('password'):
             hashed_password = get_password_hash(update_data['password'])
             del update_data['password']
             update_data['hashed_password'] = hashed_password
-        if update_data['graduate_time']:
-            update_data['hashed_password'] = date(update_data['hashed_password'])
-        if update_data['discipline']:
-            discipline_id = CRUDAcademy.get_discipline_id_by_name(update_data['discipline'])
+        if update_data.get('discipline'):
+            update_data['first_academy'] = update_data['discipline']
             del update_data['discipline']
-            update_data['discipline_id'] = discipline_id
         return super().update(db, db_obj=db_obj, obj_in=update_data)
 
     def authenticate(self, db: Session, *, sid: int, password: str) -> Optional[Student]:
